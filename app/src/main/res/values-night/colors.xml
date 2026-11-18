@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_main">#121212</color>
+    <color name="bg_display">#1E1E1E</color>
+    <color name="text_title">#E1E1E1</color>
+    <color name="text_expression">#FFFFFF</color>
+    <color name="text_result">#7A9BFF</color>
+    <color name="btn_bg">#2C2C2C</color>
+    <color name="btn_text">#E1E1E1</color>
+</resources>

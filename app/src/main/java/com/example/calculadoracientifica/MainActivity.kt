@@ -32,7 +32,6 @@ class MainActivity : AppCompatActivity() {
     private var oscuro = false
 
     private val historial = mutableListOf<String>()
-
     private var generadorSonido: ToneGenerator? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,21 +41,25 @@ class MainActivity : AppCompatActivity() {
         expresion = findViewById(R.id.tvExpresion)
         resultado = findViewById(R.id.tvResultado)
 
-        // Evitar que el teclado del sistema tape los botones
+        // Evitar que el teclado virtual del sistema se muestre al tocar el campo de texto
         expresion.showSoftInputOnFocus = false
 
+        // Inicializar sonido de forma segura
         try {
             generadorSonido = ToneGenerator(AudioManager.STREAM_MUSIC, 70)
         } catch (_: Exception) {
             generadorSonido = null
         }
 
+        // Detectar estado inicial de tema
+        oscuro = AppCompatDelegate.getDefaultNightMode() == AppCompatDelegate.MODE_NIGHT_YES
+        findViewById<Button>(R.id.btnTema)?.text = if (oscuro) "Modo claro" else "Modo oscuro"
+
         cargarHistorial()
         configurarBotones()
     }
 
     private fun configurarBotones() {
-
         val botones = mapOf(
             R.id.btn0 to "0",
             R.id.btn1 to "1",
@@ -108,12 +111,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.btnTema)?.setOnClickListener {
+            sonido()
             oscuro = !oscuro
             AppCompatDelegate.setDefaultNightMode(
-                if (oscuro)
-                    AppCompatDelegate.MODE_NIGHT_YES
-                else
-                    AppCompatDelegate.MODE_NIGHT_NO
+                if (oscuro) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
             )
         }
 
@@ -123,10 +124,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.btnHistorial)?.setOnClickListener {
+            sonido()
             mostrarHistorial()
         }
 
         findViewById<Button>(R.id.btnGrafica)?.setOnClickListener {
+            sonido()
             graficar()
         }
     }
@@ -172,10 +175,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun evaluar(texto: String): Double {
-        val limpio = texto
+        var limpio = texto
             .replace("×", "*")
             .replace("÷", "/")
             .replace("–", "-")
+
+        val abreCount = limpio.count { it == '(' }
+        val cierraCount = limpio.count { it == ')' }
+        if (abreCount > cierraCount) {
+            limpio += ")".repeat(abreCount - cierraCount)
+        }
 
         val expresionMatematica = ExpressionBuilder(limpio)
             .function(funcionSeno())
@@ -265,7 +274,7 @@ class MainActivity : AppCompatActivity() {
     // Gráfica de funciones con variable x
     private fun graficar() {
         try {
-            val funcion = expresion.text.toString()
+            var funcion = expresion.text.toString()
                 .replace("×", "*")
                 .replace("÷", "/")
                 .replace("–", "-")
@@ -277,6 +286,12 @@ class MainActivity : AppCompatActivity() {
                     Toast.LENGTH_LONG
                 ).show()
                 return
+            }
+
+            val abreCount = funcion.count { it == '(' }
+            val cierraCount = funcion.count { it == ')' }
+            if (abreCount > cierraCount) {
+                funcion += ")".repeat(abreCount - cierraCount)
             }
 
             val puntos = mutableListOf<Entry>()

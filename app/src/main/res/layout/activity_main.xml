@@ -2,7 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F1F3F8">
+    android:background="@color/bg_main">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -14,7 +14,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="CALCULADORA CIENTÍFICA"
-            android:textColor="#252A40"
+            android:textColor="@color/text_title"
             android:textSize="21sp"
             android:textStyle="bold"
             android:gravity="center"
@@ -44,23 +44,23 @@
             android:id="@+id/tvExpresion"
             android:layout_width="match_parent"
             android:layout_height="100dp"
-            android:background="#FFFFFF"
+            android:background="@color/bg_display"
             android:gravity="end|center_vertical"
             android:hint="0"
             android:inputType="none"
             android:padding="16dp"
-            android:textColor="#20243A"
+            android:textColor="@color/text_expression"
             android:textSize="30sp"/>
 
         <TextView
             android:id="@+id/tvResultado"
             android:layout_width="match_parent"
             android:layout_height="65dp"
-            android:background="#FFFFFF"
+            android:background="@color/bg_display"
             android:gravity="end|center_vertical"
             android:padding="16dp"
             android:text="Resultado"
-            android:textColor="#4263EB"
+            android:textColor="@color/text_result"
             android:textSize="25sp"
             android:textStyle="bold"/>
 
