@@ -1,21 +1,27 @@
-package com.example.calculadora
+package com.example.calculadoracientifica
 
-import android.os.Bundle
-import android.widget.*
-import android.view.View
 import android.graphics.Color
 import android.media.AudioManager
 import android.media.ToneGenerator
-import androidx.appcompat.app.AppCompatActivity
+import android.os.Bundle
+import android.view.ViewGroup
+import android.widget.Button
+import android.widget.EditText
+import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
-import net.objecthunter.exp4j.ExpressionBuilder
-import net.objecthunter.exp4j.function.Function
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
-import kotlin.math.*
+import net.objecthunter.exp4j.ExpressionBuilder
+import net.objecthunter.exp4j.function.Function
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.tan
 
 class MainActivity : AppCompatActivity() {
 
@@ -27,8 +33,7 @@ class MainActivity : AppCompatActivity() {
 
     private val historial = mutableListOf<String>()
 
-    private val generadorSonido =
-        ToneGenerator(AudioManager.STREAM_MUSIC, 70)
+    private var generadorSonido: ToneGenerator? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,6 +41,15 @@ class MainActivity : AppCompatActivity() {
 
         expresion = findViewById(R.id.tvExpresion)
         resultado = findViewById(R.id.tvResultado)
+
+        // Evitar que el teclado del sistema tape los botones
+        expresion.showSoftInputOnFocus = false
+
+        try {
+            generadorSonido = ToneGenerator(AudioManager.STREAM_MUSIC, 70)
+        } catch (_: Exception) {
+            generadorSonido = null
+        }
 
         cargarHistorial()
         configurarBotones()
@@ -67,24 +81,24 @@ class MainActivity : AppCompatActivity() {
         )
 
         botones.forEach { (id, valor) ->
-            findViewById<Button>(id).setOnClickListener {
+            findViewById<Button>(id)?.setOnClickListener {
                 sonido()
                 agregar(valor)
             }
         }
 
-        findViewById<Button>(R.id.btnIgual).setOnClickListener {
+        findViewById<Button>(R.id.btnIgual)?.setOnClickListener {
             sonido()
             calcular()
         }
 
-        findViewById<Button>(R.id.btnBorrar).setOnClickListener {
+        findViewById<Button>(R.id.btnBorrar)?.setOnClickListener {
             sonido()
             expresion.setText("")
             resultado.text = "Resultado"
         }
 
-        findViewById<Button>(R.id.btnEliminar).setOnClickListener {
+        findViewById<Button>(R.id.btnEliminar)?.setOnClickListener {
             sonido()
             val texto = expresion.text.toString()
             if (texto.isNotEmpty()) {
@@ -93,7 +107,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        findViewById<Button>(R.id.btnTema).setOnClickListener {
+        findViewById<Button>(R.id.btnTema)?.setOnClickListener {
             oscuro = !oscuro
             AppCompatDelegate.setDefaultNightMode(
                 if (oscuro)
@@ -103,17 +117,16 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        findViewById<Button>(R.id.btnSonido).setOnClickListener {
+        findViewById<Button>(R.id.btnSonido)?.setOnClickListener {
             sonidoActivo = !sonidoActivo
-            it as Button
-            it.text = if (sonidoActivo) "Sonido ON" else "Sonido OFF"
+            (it as? Button)?.text = if (sonidoActivo) "Sonido ON" else "Sonido OFF"
         }
 
-        findViewById<Button>(R.id.btnHistorial).setOnClickListener {
+        findViewById<Button>(R.id.btnHistorial)?.setOnClickListener {
             mostrarHistorial()
         }
 
-        findViewById<Button>(R.id.btnGrafica).setOnClickListener {
+        findViewById<Button>(R.id.btnGrafica)?.setOnClickListener {
             graficar()
         }
     }
@@ -131,38 +144,40 @@ class MainActivity : AppCompatActivity() {
 
     private fun sonido() {
         if (sonidoActivo) {
-            generadorSonido.startTone(
-                ToneGenerator.TONE_PROP_BEEP,
-                80
-            )
+            try {
+                generadorSonido?.startTone(ToneGenerator.TONE_PROP_BEEP, 80)
+            } catch (_: Exception) {
+            }
         }
     }
 
     // Funciones trigonométricas en grados
 
-    private fun funcionSeno() = object :
-        Function("sin", 1) {
+    private fun funcionSeno() = object : Function("sin", 1) {
         override fun apply(vararg args: Double): Double {
             return sin(Math.toRadians(args[0]))
         }
     }
 
-    private fun funcionCoseno() = object :
-        Function("cos", 1) {
+    private fun funcionCoseno() = object : Function("cos", 1) {
         override fun apply(vararg args: Double): Double {
             return cos(Math.toRadians(args[0]))
         }
     }
 
-    private fun funcionTangente() = object :
-        Function("tan", 1) {
+    private fun funcionTangente() = object : Function("tan", 1) {
         override fun apply(vararg args: Double): Double {
             return tan(Math.toRadians(args[0]))
         }
     }
 
     private fun evaluar(texto: String): Double {
-        val expresionMatematica = ExpressionBuilder(texto)
+        val limpio = texto
+            .replace("×", "*")
+            .replace("÷", "/")
+            .replace("–", "-")
+
+        val expresionMatematica = ExpressionBuilder(limpio)
             .function(funcionSeno())
             .function(funcionCoseno())
             .function(funcionTangente())
@@ -251,6 +266,9 @@ class MainActivity : AppCompatActivity() {
     private fun graficar() {
         try {
             val funcion = expresion.text.toString()
+                .replace("×", "*")
+                .replace("÷", "/")
+                .replace("–", "-")
 
             if (funcion.isBlank() || !funcion.contains("x")) {
                 Toast.makeText(
@@ -299,6 +317,10 @@ class MainActivity : AppCompatActivity() {
             conjunto.lineWidth = 2f
 
             val grafica = LineChart(this)
+            grafica.layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                800
+            )
             grafica.data = LineData(conjunto)
             grafica.description.isEnabled = false
             grafica.setTouchEnabled(true)
@@ -321,7 +343,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        generadorSonido.release()
+        try {
+            generadorSonido?.release()
+        } catch (_: Exception) {
+        }
         super.onDestroy()
     }
 }
