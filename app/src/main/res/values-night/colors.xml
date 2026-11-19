@@ -7,4 +7,9 @@
     <color name="text_result">#7A9BFF</color>
     <color name="btn_bg">#2C2C2C</color>
     <color name="btn_text">#E1E1E1</color>
+
+    <color name="axis_grid">#333333</color>
+    <color name="axis_text">#E1E1E1</color>
+    <color name="chart_line">#7A9BFF</color>
+    <color name="chart_dot">#FF4081</color>
 </resources>

@@ -1,18 +1,19 @@
 package com.example.calculadoracientifica
 
-import android.graphics.Color
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Bundle
-import android.view.ViewGroup
+import android.view.LayoutInflater
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import com.github.mikephil.charting.charts.LineChart
+import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
@@ -130,7 +131,7 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btnGrafica)?.setOnClickListener {
             sonido()
-            graficar()
+            mostrarOpcionesGraficador()
         }
     }
 
@@ -271,36 +272,216 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // Gráfica de funciones con variable x
-    private fun graficar() {
-        try {
-            var funcion = expresion.text.toString()
-                .replace("×", "*")
-                .replace("÷", "/")
-                .replace("–", "-")
+    // --- OPCIONES DE GRAFICACIÓN ---
 
-            if (funcion.isBlank() || !funcion.contains("x")) {
-                Toast.makeText(
-                    this,
-                    "Escribe una función con x, por ejemplo: x*x",
-                    Toast.LENGTH_LONG
-                ).show()
-                return
+    private fun mostrarOpcionesGraficador() {
+        val opciones = arrayOf(
+            "Escribir función manualmente",
+            "Graficar operación del historial",
+            "Graficar operación / resultado actual"
+        )
+
+        AlertDialog.Builder(this)
+            .setTitle("Opciones de Graficación")
+            .setItems(opciones) { _, which ->
+                when (which) {
+                    0 -> abrirGraficadorDialog("")
+                    1 -> seleccionarDelHistorialParaGraficar()
+                    2 -> graficarActual()
+                }
             }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
 
-            val abreCount = funcion.count { it == '(' }
-            val cierraCount = funcion.count { it == ')' }
+    private fun seleccionarDelHistorialParaGraficar() {
+        if (historial.isEmpty()) {
+            Toast.makeText(this, "El historial está vacío", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val items = historial.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Selecciona una operación del historial")
+            .setItems(items) { _, which ->
+                val operacion = items[which]
+                val expresionSolo = if (operacion.contains("=")) {
+                    operacion.split("=")[0].trim()
+                } else {
+                    operacion
+                }
+                abrirGraficadorDialog(expresionSolo)
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun graficarActual() {
+        val exp = expresion.text.toString().trim()
+        val res = resultado.text.toString().trim()
+
+        val valorPrefil = when {
+            exp.isNotBlank() -> exp
+            res.isNotBlank() && res != "Resultado" && res != "Error en operación" -> res
+            else -> "x*x"
+        }
+
+        abrirGraficadorDialog(valorPrefil)
+    }
+
+    // --- DIÁLOGO Y MOTOR DE GRAFICACIÓN ---
+
+    private fun abrirGraficadorDialog(inicial: String) {
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_graficador, null)
+
+        val etFuncionInput = view.findViewById<EditText>(R.id.etFuncionInput)
+        val etXMin = view.findViewById<EditText>(R.id.etXMin)
+        val etXMax = view.findViewById<EditText>(R.id.etXMax)
+        val btnGenerarGrafica = view.findViewById<Button>(R.id.btnGenerarGrafica)
+        val btnLimpiarGrafica = view.findViewById<Button>(R.id.btnLimpiarGrafica)
+        val tvInfoGrafica = view.findViewById<TextView>(R.id.tvInfoGrafica)
+        val chartGrafica = view.findViewById<LineChart>(R.id.chartGrafica)
+
+        val btnModoManual = view.findViewById<Button>(R.id.btnModoManual)
+        val btnModoHistorial = view.findViewById<Button>(R.id.btnModoHistorial)
+        val btnModoActual = view.findViewById<Button>(R.id.btnModoActual)
+
+        if (inicial.isNotBlank()) {
+            etFuncionInput.setText(inicial)
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(view)
+            .setPositiveButton("Cerrar", null)
+            .create()
+
+        btnModoManual.setOnClickListener {
+            etFuncionInput.setText("")
+            etFuncionInput.requestFocus()
+        }
+
+        btnModoHistorial.setOnClickListener {
+            dialog.dismiss()
+            seleccionarDelHistorialParaGraficar()
+        }
+
+        btnModoActual.setOnClickListener {
+            val exp = expresion.text.toString().trim()
+            val res = resultado.text.toString().trim()
+            val valor = when {
+                exp.isNotBlank() -> exp
+                res.isNotBlank() && res != "Resultado" && res != "Error en operación" -> res
+                else -> "x*x"
+            }
+            etFuncionInput.setText(valor)
+        }
+
+        btnGenerarGrafica.setOnClickListener {
+            sonido()
+            procesarYGraficar(etFuncionInput, etXMin, etXMax, chartGrafica, tvInfoGrafica)
+        }
+
+        btnLimpiarGrafica.setOnClickListener {
+            sonido()
+            chartGrafica.clear()
+            tvInfoGrafica.text = "Gráfica limpia."
+        }
+
+        dialog.show()
+
+        // Graficar automáticamente si ya se ingresó una función
+        if (etFuncionInput.text.isNotBlank()) {
+            procesarYGraficar(etFuncionInput, etXMin, etXMax, chartGrafica, tvInfoGrafica)
+        }
+    }
+
+    private fun procesarYGraficar(
+        etFuncionInput: EditText,
+        etXMin: EditText,
+        etXMax: EditText,
+        chart: LineChart,
+        tvInfo: TextView
+    ) {
+        val entradaRaw = etFuncionInput.text.toString().trim()
+
+        if (entradaRaw.isBlank()) {
+            Toast.makeText(this, "Ingresa una función o valor", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Detección de funciones 3D (Eje Z)
+        if (entradaRaw.contains("z=") || entradaRaw.contains("z =") || (entradaRaw.contains("x") && entradaRaw.contains("y"))) {
+            AlertDialog.Builder(this)
+                .setTitle("Función Tridimensional 3D (Eje Z)")
+                .setMessage(
+                    "MPAndroidChart es una biblioteca bidimensional (2D).\n\n" +
+                            "Las gráficas 3D (z = f(x, y)) requieren un motor gráfico tridimensional (OpenGL ES / Sceneview), " +
+                            "funcionalidad propuesta para la Etapa 2.\n\n" +
+                            "A continuación se representará el corte transversal 2D f(x)."
+                )
+                .setPositiveButton("Entendido", null)
+                .show()
+        }
+
+        var funcionLimpia = entradaRaw
+            .replace("z=", "")
+            .replace("z =", "")
+            .replace("y=", "")
+            .replace("y =", "")
+            .replace("×", "*")
+            .replace("÷", "/")
+            .replace("–", "-")
+            .replace("y", "0") // Para representar corte transversal si incluye y
+
+        val xMinVal = etXMin.text.toString().toDoubleOrNull() ?: -10.0
+        val xMaxVal = etXMax.text.toString().toDoubleOrNull() ?: 10.0
+
+        if (xMinVal >= xMaxVal) {
+            Toast.makeText(this, "El mínimo de X debe ser menor que el máximo", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Configuración de estilo según tema
+        val textColor = ContextCompat.getColor(this, R.color.axis_text)
+        val gridColor = ContextCompat.getColor(this, R.color.axis_grid)
+        val lineColor = ContextCompat.getColor(this, R.color.chart_line)
+        val dotColor = ContextCompat.getColor(this, R.color.chart_dot)
+
+        chart.description.isEnabled = false
+        chart.setTouchEnabled(true)
+        chart.setPinchZoom(true)
+        chart.isDragEnabled = true
+        chart.setScaleEnabled(true)
+        chart.legend.textColor = textColor
+
+        val xAxis = chart.xAxis
+        xAxis.position = XAxis.XAxisPosition.BOTTOM
+        xAxis.textColor = textColor
+        xAxis.gridColor = gridColor
+
+        val axisLeft = chart.axisLeft
+        axisLeft.textColor = textColor
+        axisLeft.gridColor = gridColor
+
+        val axisRight = chart.axisRight
+        axisRight.isEnabled = false
+
+        // CASO 1: La función contiene la variable 'x' -> Curva f(x)
+        if (funcionLimpia.contains("x")) {
+            val abreCount = funcionLimpia.count { it == '(' }
+            val cierraCount = funcionLimpia.count { it == ')' }
             if (abreCount > cierraCount) {
-                funcion += ")".repeat(abreCount - cierraCount)
+                funcionLimpia += ")".repeat(abreCount - cierraCount)
             }
 
             val puntos = mutableListOf<Entry>()
+            val pasos = 200
+            val pasoTamano = (xMaxVal - xMinVal) / pasos
 
-            for (i in -100..100) {
-                val x = i / 10.0
-
+            for (i in 0..pasos) {
+                val x = xMinVal + (i * pasoTamano)
                 try {
-                    val y = ExpressionBuilder(funcion)
+                    val y = ExpressionBuilder(funcionLimpia)
                         .function(funcionSeno())
                         .function(funcionCoseno())
                         .function(funcionTangente())
@@ -309,51 +490,68 @@ class MainActivity : AppCompatActivity() {
                         .setVariable("x", x)
                         .evaluate()
 
-                    if (y.isFinite() && abs(y) < 1000) {
+                    if (y.isFinite() && abs(y) < 10000) {
                         puntos.add(Entry(x.toFloat(), y.toFloat()))
                     }
                 } catch (_: Exception) {
-                    // Se omiten puntos no definidos
                 }
             }
 
             if (puntos.isEmpty()) {
-                Toast.makeText(
-                    this,
-                    "No se pudo generar la gráfica",
-                    Toast.LENGTH_SHORT
-                ).show()
+                tvInfo.text = "No se pudieron calcular puntos válidos para f(x)."
                 return
             }
 
-            val conjunto = LineDataSet(puntos, funcion)
-            conjunto.color = Color.BLUE
-            conjunto.setDrawCircles(false)
-            conjunto.lineWidth = 2f
+            val setCurva = LineDataSet(puntos, "f(x) = $entradaRaw")
+            setCurva.color = lineColor
+            setCurva.setDrawCircles(false)
+            setCurva.lineWidth = 2.5f
 
-            val grafica = LineChart(this)
-            grafica.layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                800
-            )
-            grafica.data = LineData(conjunto)
-            grafica.description.isEnabled = false
-            grafica.setTouchEnabled(true)
-            grafica.setPinchZoom(true)
-            grafica.invalidate()
+            chart.data = LineData(setCurva)
+            chart.invalidate()
+            tvInfo.text = "Gráfica de f(x) = $entradaRaw"
 
-            AlertDialog.Builder(this)
-                .setTitle("Gráfica matemática")
-                .setView(grafica)
-                .setPositiveButton("Cerrar", null)
-                .show()
+        } else {
+            // CASO 2: Resultado constante o número -> Referencia horizontal y punto
+            try {
+                val valorConstante = evaluar(funcionLimpia)
 
-        } catch (e: Exception) {
-            Toast.makeText(
-                this,
-                "Error al graficar",
-                Toast.LENGTH_SHORT
-            ).show()
+                if (!valorConstante.isFinite()) {
+                    tvInfo.text = "Resultado no válido"
+                    return
+                }
+
+                // Línea horizontal y = C
+                val puntosLinea = mutableListOf<Entry>(
+                    Entry(xMinVal.toFloat(), valorConstante.toFloat()),
+                    Entry(xMaxVal.toFloat(), valorConstante.toFloat())
+                )
+                val setLinea = LineDataSet(puntosLinea, "Referencia horizontal (y = $valorConstante)")
+                setLinea.color = lineColor
+                setLinea.lineWidth = 2f
+                setLinea.setDrawCircles(false)
+
+                // Punto destacado en (0, C)
+                val puntosPunto = mutableListOf<Entry>(
+                    Entry(0f, valorConstante.toFloat())
+                )
+                val setPunto = LineDataSet(puntosPunto, "Punto (0, $valorConstante)")
+                setPunto.color = dotColor
+                setPunto.setCircleColor(dotColor)
+                setPunto.circleRadius = 5f
+                setPunto.setDrawCircleHole(false)
+                setPunto.setDrawValues(true)
+                setPunto.valueTextColor = textColor
+                setPunto.valueTextSize = 10f
+
+                chart.data = LineData(setLinea, setPunto)
+                chart.invalidate()
+
+                tvInfo.text = "Valor constante: y = %.4f (Punto de referencia en x=0)".format(valorConstante)
+
+            } catch (e: Exception) {
+                tvInfo.text = "Error al evaluar la expresión constante."
+            }
         }
     }
 
